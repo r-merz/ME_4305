@@ -13,8 +13,19 @@ Lab 6 line follower and adds the Lab 7 BNO055-assisted lane-change.
 
 The Lab 7 maneuver follows the departure line, uses IMU yaw-rate feedback to
 turn toward an adjacent line, estimates lateral displacement from encoder speed
-and relative heading, reacquires the target line, and stops at its transverse
+and relative heading, reacquires the target line, and attempts to stop at its transverse
 black bar.
+
+### Resource ownership and interfaces
+
+`TaskMotor` owns one motor driver and one encoder per wheel. `TaskLine` owns the
+QTR line sensor and BNO055 IMU, then writes left/right wheel setpoints into
+shared mailboxes. `TaskUser` owns the USB-VCP command interface. Wheel setpoints
+and measured velocities use rad/s; line centroid uses mm; IMU yaw rate uses
+rad/s; and the lane-change lateral estimate uses m. A positive/negative wheel
+setpoint follows each verified wheel’s forward/reverse convention. For this
+robot, lane direction `-1` commands the verified physical left departure.
+
 
 ## Verified hardware configuration
 
@@ -47,6 +58,14 @@ lane direction are configured together for that verified hardware behavior.
 | Right encoder | PB6, PB7 (Timer 4) |
 | QTR-HD-13A | PA0, PA1, PA4, PB0, PC1, PC0, PA7, PA6, PA5, PC2, PC3, PC4, PC5 |
 
+## Required firmware and dependency
+
+This project requires the course MicroPython firmware for the STM32L476RG Nucleo.
+That firmware provides `pyb`, `utime`, and `array`. It also requires the
+course-supplied `cotask.py` scheduler module on the Nucleo filesystem; that
+module is not duplicated in this repository.
+
+
 ## Setup
 
 1. Copy the required `.py` files to the Nucleo MicroPython filesystem.
@@ -64,6 +83,10 @@ lane direction are configured together for that verified hardware behavior.
    ```
 
 6. At startup, choose `l` to load both saved calibration files.
+
+7. `line_calibration.json` and `imu_calibration.json` are specific to this
+   Romi’s installed sensors and IMU mounting. Recalibrate them after changing
+   the sensor height, replacing the line sensor or IMU, or remounting the IMU.
 
 ## USB commands
 
@@ -114,7 +137,8 @@ turn oscillates; reduce the yaw-rate setpoint for a gentler departure.
 
 ## Lab 8 checkpoint and verification
 
-**Checkpoint:** `lab08-incremental-output` branch. The Lab 8 change is in
+**Checkpoint:** `lab08-incremental-output` branch, merged into `main`.
+The Lab 8 refactor commit is `f20715d`; the lazy log-allocation change is in
 `src/taskline.py`.
 
 ### Change made
@@ -137,6 +161,21 @@ performing a wheel test.
 - Emergency stop (`x`): passed; the robot stopped and reported
   `TEST_ABORTED`.
 
+
+### Reproducible verification procedure
+
+1. Upload the repository `src` files and both calibration JSON files to the
+   Nucleo. Connect through PuTTY at 115200 baud.
+2. Run `exec(open("main.py").read())`, then enter `l` for both saved
+   calibration prompts. Expected result: the command menu appears.
+3. With the wheels raised, enter `l` to run the left-wheel test. Expected
+   result: data prints and ends in `TEST_COMPLETE`, with no `MemoryError`.
+4. Soft-reset the Nucleo, restart the application, and run `g` on the course.
+   Expected result: lane-change motion executes without a `MemoryError`.
+5. During a line or lane-change run, enter `x`. Expected result:
+   `TEST_ABORTED` and both motors stop.
+
+   
 ### Known limitation
 
 During the post-change Lab 7 check, the robot completed the lane-change
