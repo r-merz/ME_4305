@@ -1,6 +1,7 @@
 """Line following and Lab 0x07 IMU-feedback lane-change state machine."""
 import math
 import utime
+import gc 
 from array import array
 
 WAIT, LINE_TEST, LANE_FOLLOW_START, LANE_DEPART, LANE_RETURN, LANE_FOLLOW_TARGET = range(6)
@@ -28,6 +29,35 @@ class TaskLine:
         self.period_ms = period_ms
         self.run_duration_ms, self.log_period_ms = run_duration_ms, log_period_ms
         self.max_samples = run_duration_ms // log_period_ms + 4
+        # self.time = array("f", [0] * self.max_samples)
+        # self.centroid = array("f", [0] * self.max_samples)
+        # self.weight = array("f", [0] * self.max_samples)
+        # self.left_sp = array("f", [0] * self.max_samples)
+        # self.right_sp = array("f", [0] * self.max_samples)
+        # self.psi = array("f", [0] * self.max_samples)
+        # self.yaw_rate = array("f", [0] * self.max_samples)
+        # self.lateral = array("f", [0] * self.max_samples)
+        # self.state_log = array("f", [0] * self.max_samples)
+        # self.box["data"] = {"time_ms": self.time, "centroid_mm": self.centroid,
+        #                     "total_weight": self.weight,
+        #                     "left_setpoint_rad_s": self.left_sp,
+        #                     "right_setpoint_rad_s": self.right_sp,
+        #                     "psi_rad": self.psi, "yaw_rate_rad_s": self.yaw_rate,
+        #                     "lateral_estimate_m": self.lateral,
+        #                     "state": self.state_log}
+
+
+        # Do not reserve line/IMU log memory at startup. A log is created
+        # only when a line or lane-change test begins.
+        self.time = self.centroid = self.weight = None
+        self.left_sp = self.right_sp = None
+        self.psi = self.yaw_rate = self.lateral = self.state_log = None
+        self.box["data"] = None
+        self.state = WAIT
+
+    def _allocate_log(self):
+        """Create line/IMU logging arrays only when a run begins."""
+        gc.collect()
         self.time = array("f", [0] * self.max_samples)
         self.centroid = array("f", [0] * self.max_samples)
         self.weight = array("f", [0] * self.max_samples)
@@ -37,14 +67,17 @@ class TaskLine:
         self.yaw_rate = array("f", [0] * self.max_samples)
         self.lateral = array("f", [0] * self.max_samples)
         self.state_log = array("f", [0] * self.max_samples)
-        self.box["data"] = {"time_ms": self.time, "centroid_mm": self.centroid,
-                            "total_weight": self.weight,
-                            "left_setpoint_rad_s": self.left_sp,
-                            "right_setpoint_rad_s": self.right_sp,
-                            "psi_rad": self.psi, "yaw_rate_rad_s": self.yaw_rate,
-                            "lateral_estimate_m": self.lateral,
-                            "state": self.state_log}
-        self.state = WAIT
+        self.box["data"] = {
+            "time_ms": self.time,
+            "centroid_mm": self.centroid,
+            "total_weight": self.weight,
+            "left_setpoint_rad_s": self.left_sp,
+            "right_setpoint_rad_s": self.right_sp,
+            "psi_rad": self.psi,
+            "yaw_rate_rad_s": self.yaw_rate,
+            "lateral_estimate_m": self.lateral,
+            "state": self.state_log,
+        }
 
     def _stop_wheels(self):
         self.left["line_following"] = False
@@ -90,6 +123,7 @@ class TaskLine:
         self.lateral_estimate, self.heading_start = 0.0, None
         self.white_cleared = False
         self._snapshot_settings()
+        self._allocate_log()
         self.left["line_following"] = True
         self.right["line_following"] = True
         self.state = LANE_FOLLOW_START if lane_change else LINE_TEST

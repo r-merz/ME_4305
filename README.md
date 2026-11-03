@@ -110,3 +110,36 @@ turn oscillates; reduce the yaw-rate setpoint for a gentler departure.
 - `imu_calibration.py` - motors-off BNO055 calibration helper
 - `line_calibration.json` / `imu_calibration.json` - persistent calibration
   files; retain them on the Nucleo for repeatable startup
+
+
+## Lab 8 checkpoint and verification
+
+**Checkpoint:** `lab08-incremental-output` branch. The Lab 8 change is in
+`src/taskline.py`.
+
+### Change made
+
+`TaskLine` previously allocated nine line/IMU logging arrays during startup,
+even when no line test was running. This left insufficient RAM for
+`TaskMotor` to allocate its wheel-test log.
+
+Line/IMU logging arrays are now allocated only when a Lab 6 line test or Lab
+7 lane-change run starts. This preserves RAM while the robot is idle or
+performing a wheel test.
+
+### Verification performed
+
+- Startup: passed; line and IMU calibration profiles loaded and the command
+  menu appeared.
+- Left wheel test (`l`): passed after the change; the test completed and
+  printed its data without a `MemoryError`.
+- Lab 7 lane-change (`g`): lane-change motion ran without a `MemoryError`.
+- Emergency stop (`x`): passed; the robot stopped and reported
+  `TEST_ABORTED`.
+
+### Known limitation
+
+During the post-change Lab 7 check, the robot completed the lane-change
+motion but ended with `LINE_LOST` near the final stop bar instead of
+`STOP_BAR`. This is retained as a separate line/stop-bar behavior issue and
+was not changed as part of the Lab 8 memory refactor.
